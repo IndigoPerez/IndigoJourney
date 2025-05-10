@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { SrefItem, ViewMode } from '../types';
 import toast from 'react-hot-toast';
+
+// Initialize Supabase client
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 interface AppState {
   items: SrefItem[];
@@ -47,8 +54,6 @@ const initialState: AppState = {
   selectedItem: null,
   isAddModalOpen: false,
 };
-
-const LOCAL_STORAGE_KEY = 'sref-gallery-items';
 
 function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
@@ -100,38 +105,92 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [state, dispatch] = useReducer(reducer, initialState);
 
   useEffect(() => {
-    // Load items from localStorage on initial render
-    const savedItems = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (savedItems) {
-      try {
-        dispatch({ type: 'SET_ITEMS', payload: JSON.parse(savedItems) });
-      } catch (error) {
-        console.error('Failed to parse saved items:', error);
+    // Load items from Supabase on initial render
+    const fetchItems = async () => {
+      const { data, error } = await supabase
+        .from('sref_items')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching items:', error);
+        toast.error('Failed to load items');
+        return;
       }
-    }
+
+      dispatch({ type: 'SET_ITEMS', payload: data });
+    };
+
+    fetchItems();
+
+    // Subscribe to realtime changes
+    const subscription = supabase
+      .channel('sref_items_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sref_items' }, payload => {
+        switch (payload.eventType) {
+          case 'INSERT':
+            dispatch({ type: 'ADD_ITEM', payload: payload.new as SrefItem });
+            break;
+          case 'UPDATE':
+            dispatch({ type: 'UPDATE_ITEM', payload: payload.new as SrefItem });
+            break;
+          case 'DELETE':
+            dispatch({ type: 'DELETE_ITEM', payload: payload.old.id });
+            break;
+        }
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  useEffect(() => {
-    // Save items to localStorage whenever they change
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state.items));
-  }, [state.items]);
+  const addItem = async (newItemData: Omit<SrefItem, 'id' | 'createdAt'>) => {
+    const { data, error } = await supabase
+      .from('sref_items')
+      .insert([newItemData])
+      .select()
+      .single();
 
-  const addItem = (newItemData: Omit<SrefItem, 'id' | 'createdAt'>) => {
-    const newItem: SrefItem = {
-      ...newItemData,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    };
-    dispatch({ type: 'ADD_ITEM', payload: newItem });
+    if (error) {
+      console.error('Error adding item:', error);
+      toast.error('Failed to add item');
+      return;
+    }
+
+    dispatch({ type: 'ADD_ITEM', payload: data });
     toast.success('Item added successfully');
   };
 
-  const updateItem = (item: SrefItem) => {
+  const updateItem = async (item: SrefItem) => {
+    const { error } = await supabase
+      .from('sref_items')
+      .update(item)
+      .eq('id', item.id);
+
+    if (error) {
+      console.error('Error updating item:', error);
+      toast.error('Failed to update item');
+      return;
+    }
+
     dispatch({ type: 'UPDATE_ITEM', payload: item });
     toast.success('Item updated successfully');
   };
 
-  const deleteItem = (id: string) => {
+  const deleteItem = async (id: string) => {
+    const { error } = await supabase
+      .from('sref_items')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting item:', error);
+      toast.error('Failed to delete item');
+      return;
+    }
+
     dispatch({ type: 'DELETE_ITEM', payload: id });
     toast.success('Item deleted successfully');
   };
