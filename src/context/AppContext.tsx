@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import { SrefItem, ViewMode } from '../types';
 import toast from 'react-hot-toast';
 
-// Initialize Supabase client
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -107,92 +106,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     // Load items from Supabase on initial render
     const fetchItems = async () => {
-      const { data, error } = await supabase
-        .from('sref_items')
-        .select('*')
-        .order('created_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('sref_items')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (error) {
+        if (error) throw error;
+
+        dispatch({ type: 'SET_ITEMS', payload: data });
+      } catch (error) {
         console.error('Error fetching items:', error);
         toast.error('Failed to load items');
-        return;
       }
-
-      dispatch({ type: 'SET_ITEMS', payload: data });
     };
 
     fetchItems();
-
-    // Subscribe to realtime changes
-    const subscription = supabase
-      .channel('sref_items_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sref_items' }, payload => {
-        switch (payload.eventType) {
-          case 'INSERT':
-            dispatch({ type: 'ADD_ITEM', payload: payload.new as SrefItem });
-            break;
-          case 'UPDATE':
-            dispatch({ type: 'UPDATE_ITEM', payload: payload.new as SrefItem });
-            break;
-          case 'DELETE':
-            dispatch({ type: 'DELETE_ITEM', payload: payload.old.id });
-            break;
-        }
-      })
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, []);
 
   const addItem = async (newItemData: Omit<SrefItem, 'id' | 'createdAt'>) => {
-    const { data, error } = await supabase
-      .from('sref_items')
-      .insert([newItemData])
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('sref_items')
+        .insert([{
+          sref_code: newItemData.srefCode,
+          image_url: newItemData.imageUrl,
+          title: newItemData.title,
+          description: newItemData.description,
+          tags: newItemData.tags,
+        }])
+        .select()
+        .single();
 
-    if (error) {
+      if (error) throw error;
+
+      dispatch({ type: 'ADD_ITEM', payload: {
+        id: data.id,
+        srefCode: data.sref_code,
+        imageUrl: data.image_url,
+        title: data.title,
+        description: data.description,
+        tags: data.tags,
+        createdAt: data.created_at,
+      }});
+      
+      toast.success('Item added successfully');
+    } catch (error) {
       console.error('Error adding item:', error);
       toast.error('Failed to add item');
-      return;
     }
-
-    dispatch({ type: 'ADD_ITEM', payload: data });
-    toast.success('Item added successfully');
   };
 
   const updateItem = async (item: SrefItem) => {
-    const { error } = await supabase
-      .from('sref_items')
-      .update(item)
-      .eq('id', item.id);
+    try {
+      const { error } = await supabase
+        .from('sref_items')
+        .update({
+          sref_code: item.srefCode,
+          image_url: item.imageUrl,
+          title: item.title,
+          description: item.description,
+          tags: item.tags,
+        })
+        .eq('id', item.id);
 
-    if (error) {
+      if (error) throw error;
+
+      dispatch({ type: 'UPDATE_ITEM', payload: item });
+      toast.success('Item updated successfully');
+    } catch (error) {
       console.error('Error updating item:', error);
       toast.error('Failed to update item');
-      return;
     }
-
-    dispatch({ type: 'UPDATE_ITEM', payload: item });
-    toast.success('Item updated successfully');
   };
 
   const deleteItem = async (id: string) => {
-    const { error } = await supabase
-      .from('sref_items')
-      .delete()
-      .eq('id', id);
+    try {
+      const { error } = await supabase
+        .from('sref_items')
+        .delete()
+        .eq('id', id);
 
-    if (error) {
+      if (error) throw error;
+
+      dispatch({ type: 'DELETE_ITEM', payload: id });
+      toast.success('Item deleted successfully');
+    } catch (error) {
       console.error('Error deleting item:', error);
       toast.error('Failed to delete item');
-      return;
     }
-
-    dispatch({ type: 'DELETE_ITEM', payload: id });
-    toast.success('Item deleted successfully');
   };
 
   const searchItems = (query: string) => {

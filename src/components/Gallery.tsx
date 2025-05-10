@@ -23,7 +23,7 @@ const Gallery: React.FC = () => {
   if (state.viewMode === 'grid') {
     return (
       <>
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
           {filteredItems.map(item => (
             <div
               key={item.id}
