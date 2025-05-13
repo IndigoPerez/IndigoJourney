@@ -126,6 +126,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addItem = async (newItemData: Omit<SrefItem, 'id' | 'createdAt'>) => {
     try {
+      // Get the current user's ID
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        throw new Error('User must be authenticated to add items');
+      }
+
       const { data, error } = await supabase
         .from('sref_items')
         .insert([{
@@ -134,6 +141,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           title: newItemData.title,
           description: newItemData.description,
           tags: newItemData.tags,
+          user_id: user.id // Include the user_id in the insert
         }])
         .select()
         .single();
