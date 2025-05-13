@@ -3,6 +3,7 @@ import { Search, Plus, Tag, Grid, List, Download, Upload } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import AddItemModal from './AddItemModal';
 import TagsMenu from './TagsMenu';
+import Auth from './Auth';
 import { exportData, importData } from '../utils/dataUtils';
 
 const Header: React.FC = () => {
@@ -11,6 +12,7 @@ const Header: React.FC = () => {
     searchItems, 
     toggleAddModal, 
     setViewMode,
+    user,
   } = useAppContext();
   
   const [isTagsMenuOpen, setIsTagsMenuOpen] = useState(false);
@@ -48,7 +50,12 @@ const Header: React.FC = () => {
     <header className="bg-white shadow-sm">
       <div className="container mx-auto px-4 py-4">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold text-neutral-800">SREF Code Gallery</h1>
+          <div className="flex items-center justify-between w-full md:w-auto">
+            <h1 className="text-2xl font-bold text-neutral-800">SREF Code Gallery</h1>
+            <div className="md:hidden">
+              <Auth />
+            </div>
+          </div>
           
           <div className="w-full md:w-auto flex flex-1 md:flex-initial flex-col md:flex-row items-center gap-3">
             <div className="relative w-full md:w-64 lg:w-80">
@@ -121,13 +128,18 @@ const Header: React.FC = () => {
                 >
                   <Upload className="w-5 h-5" />
                 </button>
-                <button
-                  onClick={toggleAddModal}
-                  className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition-colors flex items-center gap-1"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add New</span>
-                </button>
+                {user && (
+                  <button
+                    onClick={toggleAddModal}
+                    className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add New</span>
+                  </button>
+                )}
+              </div>
+              <div className="hidden md:block">
+                <Auth />
               </div>
             </div>
           </div>

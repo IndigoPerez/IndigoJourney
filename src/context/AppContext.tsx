@@ -1,12 +1,17 @@
-import React, { createContext, useContext, useEffect, useReducer } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import React, { createContext, useContext, useEffect, useReducer, useState } from 'react';
+import { createClient, User } from '@supabase/supabase-js';
 import { SrefItem, ViewMode } from '../types';
 import toast from 'react-hot-toast';
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+// Initialize Supabase client
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface AppState {
   items: SrefItem[];
@@ -43,6 +48,9 @@ interface AppContextProps {
   toggleAddModal: () => void;
   getAllTags: () => string[];
   filteredItems: SrefItem[];
+  supabase: typeof supabase;
+  user: User | null;
+  signOut: () => Promise<void>;
 }
 
 const initialState: AppState = {
@@ -102,9 +110,26 @@ const AppContext = createContext<AppContextProps | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Load items from Supabase on initial render
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    // Load items from Supabase on initial render or when user changes
     const fetchItems = async () => {
       try {
         const { data, error } = await supabase
@@ -121,15 +146,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    fetchItems();
-  }, []);
+    if (user) {
+      fetchItems();
+    } else {
+      dispatch({ type: 'SET_ITEMS', payload: [] });
+    }
+  }, [user]);
 
   const addItem = async (newItemData: Omit<SrefItem, 'id' | 'createdAt'>) => {
     try {
-      // Get the current user's ID
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
+      if (!user) {
         throw new Error('User must be authenticated to add items');
       }
 
@@ -141,7 +167,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           title: newItemData.title,
           description: newItemData.description,
           tags: newItemData.tags,
-          user_id: user.id // Include the user_id in the insert
+          user_id: user.id
         }])
         .select()
         .single();
@@ -162,11 +188,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (error) {
       console.error('Error adding item:', error);
       toast.error('Failed to add item');
+      throw error;
     }
   };
 
   const updateItem = async (item: SrefItem) => {
     try {
+      if (!user) {
+        throw new Error('User must be authenticated to update items');
+      }
+
       const { error } = await supabase
         .from('sref_items')
         .update({
@@ -176,7 +207,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           description: item.description,
           tags: item.tags,
         })
-        .eq('id', item.id);
+        .eq('id', item.id)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
@@ -185,15 +217,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (error) {
       console.error('Error updating item:', error);
       toast.error('Failed to update item');
+      throw error;
     }
   };
 
   const deleteItem = async (id: string) => {
     try {
+      if (!user) {
+        throw new Error('User must be authenticated to delete items');
+      }
+
       const { error } = await supabase
         .from('sref_items')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
@@ -202,7 +240,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (error) {
       console.error('Error deleting item:', error);
       toast.error('Failed to delete item');
+      throw error;
     }
+  };
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
   };
 
   const searchItems = (query: string) => {
@@ -269,6 +313,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleAddModal,
         getAllTags,
         filteredItems,
+        supabase,
+        user,
+        signOut,
       }}
     >
       {children}
