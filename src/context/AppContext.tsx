@@ -155,7 +155,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addItem = async (newItemData: Omit<SrefItem, 'id' | 'createdAt'>) => {
     try {
-      if (!user) {
+      if (!user?.id) {
         throw new Error('User must be authenticated to add items');
       }
 
@@ -167,7 +167,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           title: newItemData.title,
           description: newItemData.description,
           tags: newItemData.tags,
-          user_id: user.id
+          user_id: user.id // Explicitly set user_id to match the authenticated user's ID
         }])
         .select()
         .single();
@@ -194,7 +194,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateItem = async (item: SrefItem) => {
     try {
-      if (!user) {
+      if (!user?.id) {
         throw new Error('User must be authenticated to update items');
       }
 
@@ -223,7 +223,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteItem = async (id: string) => {
     try {
-      if (!user) {
+      if (!user?.id) {
         throw new Error('User must be authenticated to delete items');
       }
 
