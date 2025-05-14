@@ -52,7 +52,7 @@ const Gallery: React.FC = () => {
               <div className="p-4">
                 <h3 className="font-semibold text-neutral-800 truncate">{item.title}</h3>
                 <div className="mt-2 flex flex-wrap gap-1">
-                  {item.tags.slice(0, 3).map(tag => (
+                  {(Array.isArray(item.tags) ? item.tags.slice(0, 3) : []).map(tag => (
                     <span
                       key={tag}
                       className="inline-block px-2 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full"
@@ -60,7 +60,7 @@ const Gallery: React.FC = () => {
                       {tag}
                     </span>
                   ))}
-                  {item.tags.length > 3 && (
+                  {Array.isArray(item.tags) && item.tags.length > 3 && (
                     <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
                       +{item.tags.length - 3}
                     </span>
@@ -110,7 +110,7 @@ const Gallery: React.FC = () => {
               <h3 className="font-medium text-neutral-800 truncate">{item.title}</h3>
               <p className="text-sm text-gray-500 truncate">{item.description}</p>
               <div className="mt-1 flex flex-wrap gap-1">
-                {item.tags.slice(0, 3).map(tag => (
+                {(Array.isArray(item.tags) ? item.tags.slice(0, 3) : []).map(tag => (
                   <span
                     key={tag}
                     className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-full"
@@ -118,7 +118,7 @@ const Gallery: React.FC = () => {
                     {tag}
                   </span>
                 ))}
-                {item.tags.length > 3 && (
+                {Array.isArray(item.tags) && item.tags.length > 3 && (
                   <span className="inline-block px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
                     +{item.tags.length - 3}
                   </span>
