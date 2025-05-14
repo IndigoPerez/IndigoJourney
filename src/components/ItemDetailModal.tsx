@@ -6,118 +6,82 @@ import {
   Edit, 
   Check, 
   AlertCircle, 
-  Image as ImageIcon 
+  ImageOff
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import toast from 'react-hot-toast';
 
-interface FormData {
-  srefCode: string;
-  imageUrl: string;
-  title: string;
-  description: string;
-  tags: string[];
-}
-
-const initialFormData: FormData = {
-  srefCode: '',
-  imageUrl: '',
-  title: '',
-  description: '',
-  tags: [],
-};
-
-const AddItemModal: React.FC = () => {
-  const { toggleAddModal, addItem } = useAppContext();
-  const [formData, setFormData] = useState<FormData>(initialFormData);
+const ItemDetailModal: React.FC = () => {
+  const { state, setSelectedItem, updateItem, deleteItem, user } = useAppContext();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedItem, setEditedItem] = useState(state.selectedItem);
   const [tagInput, setTagInput] = useState('');
-  const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  if (!state.selectedItem) return null;
+
+  const handleClose = () => {
+    setSelectedItem(null);
+    setIsEditing(false);
+  };
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(state.selectedItem.srefCode);
+    toast.success('SREF code copied to clipboard');
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteItem(state.selectedItem.id);
+      handleClose();
+    } catch (error) {
+      console.error('Error deleting item:', error);
+    }
+  };
+
+  const handleEdit = () => {
+    setEditedItem(state.selectedItem);
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      if (!editedItem) return;
+      await updateItem(editedItem);
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating item:', error);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!editedItem) return;
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear error when field is edited
-    if (errors[name as keyof FormData]) {
-      setErrors(prev => ({ ...prev, [name]: undefined }));
-    }
-  };
-
-  const handleImageUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const url = e.target.value;
-    setFormData(prev => ({ ...prev, imageUrl: url }));
-    
-    // Clear error
-    if (errors.imageUrl) {
-      setErrors(prev => ({ ...prev, imageUrl: undefined }));
-    }
-    
-    // Try to load image preview
-    if (url) {
-      const img = new Image();
-      img.onload = () => setImagePreview(url);
-      img.onerror = () => setImagePreview(null);
-      img.src = url;
-    } else {
-      setImagePreview(null);
-    }
-  };
-
-  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTagInput(e.target.value);
+    setEditedItem({ ...editedItem, [name]: value });
   };
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && tagInput.trim()) {
+    if (e.key === 'Enter' && tagInput.trim() && editedItem) {
       e.preventDefault();
-      addTag();
-    }
-  };
-
-  const addTag = () => {
-    const trimmedTag = tagInput.trim();
-    if (trimmedTag && !formData.tags.includes(trimmedTag)) {
-      setFormData(prev => ({
-        ...prev,
-        tags: [...prev.tags, trimmedTag],
-      }));
+      const newTags = Array.isArray(editedItem.tags) ? [...editedItem.tags] : [];
+      if (!newTags.includes(tagInput.trim())) {
+        setEditedItem({
+          ...editedItem,
+          tags: [...newTags, tagInput.trim()]
+        });
+      }
       setTagInput('');
     }
   };
 
   const removeTag = (tagToRemove: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove),
-    }));
+    if (!editedItem) return;
+    setEditedItem({
+      ...editedItem,
+      tags: editedItem.tags.filter(tag => tag !== tagToRemove)
+    });
   };
 
-  const validate = (): boolean => {
-    const newErrors: Partial<Record<keyof FormData, string>> = {};
-    
-    if (!formData.srefCode.trim()) {
-      newErrors.srefCode = 'SREF code is required';
-    }
-    
-    if (!formData.title.trim()) {
-      newErrors.title = 'Title is required';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validate()) {
-      return;
-    }
-    
-    addItem(formData);
-    toggleAddModal();
-  };
+  const canEdit = user?.id === state.selectedItem.userId;
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -126,173 +90,200 @@ const AddItemModal: React.FC = () => {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-semibold text-neutral-800">Add New SREF Code</h2>
-          <button
-            onClick={toggleAddModal}
-            className="text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <h2 className="text-xl font-semibold text-neutral-800">
+            {isEditing ? 'Edit SREF Code' : state.selectedItem.srefCode}
+          </h2>
+          <div className="flex items-center gap-2">
+            {canEdit && !isEditing && (
+              <>
+                <button
+                  onClick={handleEdit}
+                  className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                  title="Edit"
+                >
+                  <Edit className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="p-2 text-red-500 hover:text-red-700 transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </>
+            )}
+            <button
+              onClick={handleCopyCode}
+              className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+              title="Copy SREF code"
+            >
+              <Copy className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleClose}
+              className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
         
         <div className="flex-1 overflow-y-auto p-4">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {isEditing ? (
+            <form className="space-y-4">
               <div>
                 <label htmlFor="srefCode" className="block text-sm font-medium text-gray-700 mb-1">
-                  SREF Code <span className="text-red-500">*</span>
+                  SREF Code
                 </label>
                 <input
                   type="text"
                   id="srefCode"
                   name="srefCode"
-                  value={formData.srefCode}
+                  value={editedItem?.srefCode || ''}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2 border ${
-                    errors.srefCode ? 'border-red-500' : 'border-gray-300'
-                  } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all`}
-                  placeholder="Enter SREF code"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
-                {errors.srefCode && (
-                  <p className="mt-1 text-sm text-red-500 flex items-center">
-                    <AlertCircle className="w-3 h-3 mr-1" />
-                    {errors.srefCode}
-                  </p>
-                )}
               </div>
               
               <div>
                 <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                  Title <span className="text-red-500">*</span>
+                  Title
                 </label>
                 <input
                   type="text"
                   id="title"
                   name="title"
-                  value={formData.title}
+                  value={editedItem?.title || ''}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2 border ${
-                    errors.title ? 'border-red-500' : 'border-gray-300'
-                  } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all`}
-                  placeholder="Enter title"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
-                {errors.title && (
-                  <p className="mt-1 text-sm text-red-500 flex items-center">
-                    <AlertCircle className="w-3 h-3 mr-1" />
-                    {errors.title}
-                  </p>
-                )}
               </div>
-            </div>
-            
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-                Description
-              </label>
-              <textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                placeholder="Enter description (optional)"
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="imageUrl" className="block text-sm font-medium text-gray-700 mb-1">
-                Image URL
-              </label>
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    id="imageUrl"
-                    name="imageUrl"
-                    value={formData.imageUrl}
-                    onChange={handleImageUrlChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="Enter image URL"
-                  />
-                </div>
-                {imagePreview && (
-                  <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 border border-gray-300">
-                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                  </div>
-                )}
-                {!imagePreview && formData.imageUrl && (
-                  <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 border border-gray-300 flex items-center justify-center bg-gray-100">
-                    <Upload className="w-5 h-5 text-gray-400" />
-                  </div>
-                )}
+              
+              <div>
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  id="description"
+                  name="description"
+                  value={editedItem?.description || ''}
+                  onChange={handleChange}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
               </div>
-            </div>
-            
-            <div>
-              <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-1">
-                Tags
-              </label>
-              <div className="flex items-center gap-2">
+              
+              <div>
+                <label htmlFor="imageUrl" className="block text-sm font-medium text-gray-700 mb-1">
+                  Image URL
+                </label>
                 <input
                   type="text"
-                  id="tags"
-                  value={tagInput}
-                  onChange={handleTagInputChange}
-                  onKeyDown={handleTagInputKeyDown}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                  placeholder="Add tags (press Enter)"
+                  id="imageUrl"
+                  name="imageUrl"
+                  value={editedItem?.imageUrl || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
-                <button
-                  type="button"
-                  onClick={addTag}
-                  className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
-                >
-                  Add
-                </button>
               </div>
-              {formData.tags.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {formData.tags.map(tag => (
+              
+              <div>
+                <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-1">
+                  Tags
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    id="tags"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={handleTagInputKeyDown}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="Add tags (press Enter)"
+                  />
+                </div>
+                {editedItem?.tags && editedItem.tags.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {editedItem.tags.map(tag => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-sm"
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => removeTag(tag)}
+                          className="ml-1 text-blue-700 hover:text-blue-900"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              <div className="aspect-video relative overflow-hidden bg-gray-100 rounded-lg">
+                {state.selectedItem.imageUrl ? (
+                  <img
+                    src={state.selectedItem.imageUrl}
+                    alt={state.selectedItem.title}
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/800x600?text=Image+Error';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ImageOff className="w-12 h-12 text-gray-400" />
+                  </div>
+                )}
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-semibold">{state.selectedItem.title}</h3>
+                <p className="mt-2 text-gray-600">{state.selectedItem.description}</p>
+              </div>
+              
+              {Array.isArray(state.selectedItem.tags) && state.selectedItem.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {state.selectedItem.tags.map(tag => (
                     <span
                       key={tag}
-                      className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-sm"
+                      className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-sm"
                     >
                       {tag}
-                      <button
-                        type="button"
-                        onClick={() => removeTag(tag)}
-                        className="ml-1 text-blue-700 hover:text-blue-900"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
                     </span>
                   ))}
                 </div>
               )}
             </div>
-          </form>
+          )}
         </div>
         
-        <div className="flex justify-end p-4 border-t bg-gray-50">
-          <button
-            type="button"
-            onClick={toggleAddModal}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors mr-2"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Add Item
-          </button>
-        </div>
+        {isEditing && (
+          <div className="flex justify-end p-4 border-t bg-gray-50">
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors mr-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Save Changes
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default AddItemModal;
+export default ItemDetailModal;

@@ -6,6 +6,7 @@ export interface SrefItem {
   description: string;
   tags: string[];
   createdAt: string;
+  userId?: string;
 }
 
 export type ViewMode = 'grid' | 'list';
