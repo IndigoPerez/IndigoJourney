@@ -43,7 +43,11 @@ const ItemDetailModal: React.FC = () => {
   };
 
   const handleEdit = () => {
-    setEditedItem(state.selectedItem);
+    // Ensure tags is always an array when editing
+    setEditedItem({
+      ...state.selectedItem,
+      tags: Array.isArray(state.selectedItem.tags) ? state.selectedItem.tags : []
+    });
     setIsEditing(true);
   };
 
@@ -70,7 +74,13 @@ const ItemDetailModal: React.FC = () => {
         return;
       }
 
-      await updateItem(editedItem);
+      // Ensure tags is an array before saving
+      const itemToSave = {
+        ...editedItem,
+        tags: Array.isArray(editedItem.tags) ? editedItem.tags : []
+      };
+
+      await updateItem(itemToSave);
       setIsEditing(false);
       toast.success('Item updated successfully');
     } catch (error) {
@@ -92,11 +102,11 @@ const ItemDetailModal: React.FC = () => {
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && tagInput.trim() && editedItem) {
       e.preventDefault();
-      const newTags = Array.isArray(editedItem.tags) ? [...editedItem.tags] : [];
-      if (!newTags.includes(tagInput.trim())) {
+      const currentTags = Array.isArray(editedItem.tags) ? editedItem.tags : [];
+      if (!currentTags.includes(tagInput.trim())) {
         setEditedItem({
           ...editedItem,
-          tags: [...newTags, tagInput.trim()]
+          tags: [...currentTags, tagInput.trim()]
         });
       }
       setTagInput('');
@@ -105,9 +115,10 @@ const ItemDetailModal: React.FC = () => {
 
   const removeTag = (tagToRemove: string) => {
     if (!editedItem) return;
+    const currentTags = Array.isArray(editedItem.tags) ? editedItem.tags : [];
     setEditedItem({
       ...editedItem,
-      tags: editedItem.tags.filter(tag => tag !== tagToRemove)
+      tags: currentTags.filter(tag => tag !== tagToRemove)
     });
   };
 
@@ -248,7 +259,7 @@ const ItemDetailModal: React.FC = () => {
                     placeholder="Add tags (press Enter)"
                   />
                 </div>
-                {editedItem?.tags && editedItem.tags.length > 0 && (
+                {editedItem?.tags && Array.isArray(editedItem.tags) && editedItem.tags.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {editedItem.tags.map(tag => (
                       <span
@@ -295,7 +306,7 @@ const ItemDetailModal: React.FC = () => {
                 <p className="mt-2 text-gray-600">{state.selectedItem.description}</p>
               </div>
               
-              {state.selectedItem.tags && state.selectedItem.tags.length > 0 && (
+              {Array.isArray(state.selectedItem.tags) && state.selectedItem.tags.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {state.selectedItem.tags.map(tag => (
                     <span
