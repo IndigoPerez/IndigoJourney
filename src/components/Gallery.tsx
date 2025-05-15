@@ -79,7 +79,7 @@ const Gallery: React.FC = () => {
               <div className="p-4">
                 <h3 className="font-semibold text-neutral-800 truncate">{item.title}</h3>
                 <p className="text-sm text-gray-500 mt-1 truncate">{item.srefCode}</p>
-                {item.tags && item.tags.length > 0 && (
+                {Array.isArray(item.tags) && item.tags.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {item.tags.slice(0, 3).map(tag => (
                       <span
@@ -142,7 +142,7 @@ const Gallery: React.FC = () => {
             <div className="min-w-0">
               <h3 className="font-medium text-neutral-800 truncate">{item.title}</h3>
               <p className="text-sm text-gray-500 truncate">{item.description}</p>
-              {item.tags && item.tags.length > 0 && (
+              {Array.isArray(item.tags) && item.tags.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1">
                   {item.tags.slice(0, 3).map(tag => (
                     <span
