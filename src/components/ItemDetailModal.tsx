@@ -16,6 +16,7 @@ const ItemDetailModal: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedItem, setEditedItem] = useState(state.selectedItem);
   const [tagInput, setTagInput] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   if (!state.selectedItem) return null;
 
@@ -30,11 +31,14 @@ const ItemDetailModal: React.FC = () => {
   };
 
   const handleDelete = async () => {
-    try {
-      await deleteItem(state.selectedItem.id);
-      handleClose();
-    } catch (error) {
-      console.error('Error deleting item:', error);
+    if (window.confirm('Are you sure you want to delete this item?')) {
+      try {
+        await deleteItem(state.selectedItem.id);
+        handleClose();
+        toast.success('Item deleted successfully');
+      } catch (error) {
+        toast.error('Failed to delete item');
+      }
     }
   };
 
@@ -43,13 +47,34 @@ const ItemDetailModal: React.FC = () => {
     setIsEditing(true);
   };
 
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!editedItem.srefCode.trim()) {
+      newErrors.srefCode = 'SREF code is required';
+    }
+    
+    if (!editedItem.title.trim()) {
+      newErrors.title = 'Title is required';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSave = async () => {
     try {
       if (!editedItem) return;
+      
+      if (!validate()) {
+        return;
+      }
+
       await updateItem(editedItem);
       setIsEditing(false);
+      toast.success('Item updated successfully');
     } catch (error) {
-      console.error('Error updating item:', error);
+      toast.error('Failed to update item');
     }
   };
 
@@ -57,6 +82,11 @@ const ItemDetailModal: React.FC = () => {
     if (!editedItem) return;
     const { name, value } = e.target;
     setEditedItem({ ...editedItem, [name]: value });
+    
+    // Clear error when field is edited
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: undefined }));
+    }
   };
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -133,7 +163,7 @@ const ItemDetailModal: React.FC = () => {
             <form className="space-y-4">
               <div>
                 <label htmlFor="srefCode" className="block text-sm font-medium text-gray-700 mb-1">
-                  SREF Code
+                  SREF Code <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -141,13 +171,21 @@ const ItemDetailModal: React.FC = () => {
                   name="srefCode"
                   value={editedItem?.srefCode || ''}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className={`w-full px-3 py-2 border ${
+                    errors.srefCode ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
                 />
+                {errors.srefCode && (
+                  <p className="mt-1 text-sm text-red-500 flex items-center">
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    {errors.srefCode}
+                  </p>
+                )}
               </div>
               
               <div>
                 <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                  Title
+                  Title <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -155,8 +193,16 @@ const ItemDetailModal: React.FC = () => {
                   name="title"
                   value={editedItem?.title || ''}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className={`w-full px-3 py-2 border ${
+                    errors.title ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
                 />
+                {errors.title && (
+                  <p className="mt-1 text-sm text-red-500 flex items-center">
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    {errors.title}
+                  </p>
+                )}
               </div>
               
               <div>
@@ -169,7 +215,7 @@ const ItemDetailModal: React.FC = () => {
                   value={editedItem?.description || ''}
                   onChange={handleChange}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
               
@@ -183,7 +229,7 @@ const ItemDetailModal: React.FC = () => {
                   name="imageUrl"
                   value={editedItem?.imageUrl || ''}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
               
@@ -198,7 +244,7 @@ const ItemDetailModal: React.FC = () => {
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
                     onKeyDown={handleTagInputKeyDown}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Add tags (press Enter)"
                   />
                 </div>
@@ -231,8 +277,10 @@ const ItemDetailModal: React.FC = () => {
                     src={state.selectedItem.imageUrl}
                     alt={state.selectedItem.title}
                     className="w-full h-full object-contain"
+                    loading="lazy"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/800x600?text=Image+Error';
+                      const target = e.target as HTMLImageElement;
+                      target.src = 'https://via.placeholder.com/800x600?text=Image+Error';
                     }}
                   />
                 ) : (
@@ -247,7 +295,7 @@ const ItemDetailModal: React.FC = () => {
                 <p className="mt-2 text-gray-600">{state.selectedItem.description}</p>
               </div>
               
-              {Array.isArray(state.selectedItem.tags) && state.selectedItem.tags.length > 0 && (
+              {state.selectedItem.tags && state.selectedItem.tags.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {state.selectedItem.tags.map(tag => (
                     <span
